@@ -18,7 +18,7 @@ pub struct CmdOpts {
     pub interval: u64,
     /// maximum offline time in seconds at least 3x as large as interval
     #[clap(short, long, default_value = "30")]
-    pub offline: u64,
+    pub max_offline: u64,
 }
 
 fn main() {
