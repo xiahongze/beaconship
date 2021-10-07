@@ -1,7 +1,11 @@
-//! Command line options
-use clap::Clap;
-use std::{thread, time::Duration};
+mod model;
 
+use clap::Clap;
+use hyper::{Body, Client, Request};
+use model::ShipAliveReq;
+use std::{thread, time::Duration};
+// A simple type alias so as to DRY.
+type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 #[derive(Clap, Debug)]
 pub struct CmdOpts {
     /// remote server address
@@ -21,11 +25,33 @@ pub struct CmdOpts {
     pub max_offline: u64,
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> Result<()> {
     let opts = CmdOpts::parse();
+    let reqstruct = ShipAliveReq {
+        hostname: opts.hostname.unwrap_or("default".into()),
+        max_offline: opts.max_offline,
+        uuid: opts.uuid.unwrap_or("default UUID".into()),
+    };
+    let client = Client::new();
+    // let uri = opts.server.parse::<hyper::Uri>().unwrap();
+    // let req_body = Body::from(serde_json::to_vec(&reqstruct).unwrap());
+    // let req = Request::builder()
+    //     .method("POST")
+    //     .uri(uri)
+    //     .body(req_body)
+    //     .unwrap();
 
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
         println!("Hello, beacon!");
+        let uri = opts.server.parse::<hyper::Uri>().unwrap();
+        let req_body = Body::from(serde_json::to_vec(&reqstruct).unwrap());
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .body(req_body)
+            .unwrap();
+        let mut res = client.request(req);
     }
 }
