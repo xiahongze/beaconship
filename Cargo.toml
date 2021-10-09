@@ -10,6 +10,7 @@ authors = ["Hongze Xia <hongze.x@gmail.com>"]
 clap = "3.0.0-beta.4"
 reqwest = "0.11.5"
 hostname = "0.3.1"
+uuid = { version = "0.8", features = ["serde", "v4"] }
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

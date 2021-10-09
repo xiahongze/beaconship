@@ -13,12 +13,9 @@ struct CmdOpts {
     /// remote server address
     #[clap(short, long)]
     pub server: String,
-    /// this hostname
+    /// this hostname, default to os hostname
     #[clap(short, long)]
     pub hostname: Option<String>,
-    /// UUID of this ship
-    #[clap(short, long)]
-    pub uuid: Option<String>,
     /// heartbeat interval in seconds
     #[clap(short, long, default_value = "10")]
     pub interval: u64,
@@ -43,7 +40,7 @@ async fn main() -> Result<()> {
                 .unwrap_or_else(|_| "unknown host".into())
         }),
         max_offline: opts.max_offline,
-        uuid: opts.uuid.unwrap_or_else(|| "default UUID".into()),
+        uuid: uuid::Uuid::new_v4().to_string(),
     };
     info!("Ship sailed with {:?}", reqstruct);
 
