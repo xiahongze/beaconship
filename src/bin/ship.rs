@@ -5,8 +5,11 @@ use model::ShipAliveReq;
 use std::{thread, time::Duration};
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
+#[macro_use]
+extern crate log;
+
 #[derive(Clap, Debug)]
-pub struct CmdOpts {
+struct CmdOpts {
     /// remote server address
     #[clap(short, long)]
     pub server: String,
@@ -26,7 +29,13 @@ pub struct CmdOpts {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let _ = env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .try_init();
+
     let opts = CmdOpts::parse();
+    info!("Ship sailed with {:?}", opts);
+
     let reqstruct = ShipAliveReq {
         hostname: opts.hostname.unwrap_or_else(|| "default".into()),
         max_offline: opts.max_offline,
@@ -35,19 +44,27 @@ async fn main() -> Result<()> {
     let client = reqwest::Client::new();
 
     loop {
-        println!("Hello, beacon!");
-        thread::sleep(Duration::from_secs(opts.interval));
         let url = reqwest::Url::parse(&opts.server).expect("Expect Legit URL");
         let body = serde_json::to_vec(&reqstruct).unwrap();
-        let resp = client
+        let result = client
             .post(url)
             .body(body)
             .header("content-type", "application/json")
             .send()
-            .await?;
-        match resp.status() {
-            reqwest::StatusCode::OK => println!("success"),
-            _ => println!("failed"),
+            .await;
+        match result {
+            Ok(resp) => match resp.status() {
+                reqwest::StatusCode::OK => info!("success"),
+                code => warn!(
+                    "failed with statusCode {:?}, msg {:?}",
+                    code,
+                    resp.text()
+                        .await
+                        .unwrap_or_else(|_| "can't read text".into())
+                ),
+            },
+            Err(err) => warn!("request sent failed with error, {:?}", err),
         }
+        thread::sleep(Duration::from_secs(opts.interval));
     }
 }
