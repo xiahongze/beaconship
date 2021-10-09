@@ -1,7 +1,6 @@
 mod model;
 
 use clap::Clap;
-use hyper::{Body, Client, Request};
 use model::ShipAliveReq;
 use std::{thread, time::Duration};
 // A simple type alias so as to DRY.
@@ -33,25 +32,22 @@ async fn main() -> Result<()> {
         max_offline: opts.max_offline,
         uuid: opts.uuid.unwrap_or_else(|| "default UUID".into()),
     };
-    let client = Client::new();
-    // let uri = opts.server.parse::<hyper::Uri>().unwrap();
-    // let req_body = Body::from(serde_json::to_vec(&reqstruct).unwrap());
-    // let req = Request::builder()
-    //     .method("POST")
-    //     .uri(uri)
-    //     .body(req_body)
-    //     .unwrap();
+    let client = reqwest::Client::new();
 
     loop {
-        thread::sleep(Duration::from_secs(opts.interval));
         println!("Hello, beacon!");
-        let uri = opts.server.parse::<hyper::Uri>().unwrap();
-        let req_body = Body::from(serde_json::to_vec(&reqstruct).unwrap());
-        let req = Request::builder()
-            .method("POST")
-            .uri(uri)
-            .body(req_body)
-            .unwrap();
-        let mut res = client.request(req);
+        thread::sleep(Duration::from_secs(opts.interval));
+        let url = reqwest::Url::parse(&opts.server).expect("Expect Legit URL");
+        let body = serde_json::to_vec(&reqstruct).unwrap();
+        let resp = client
+            .post(url)
+            .body(body)
+            .header("content-type", "application/json")
+            .send()
+            .await?;
+        match resp.status() {
+            reqwest::StatusCode::OK => println!("success"),
+            _ => println!("failed"),
+        }
     }
 }
