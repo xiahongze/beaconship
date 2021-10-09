@@ -29,9 +29,9 @@ pub struct CmdOpts {
 async fn main() -> Result<()> {
     let opts = CmdOpts::parse();
     let reqstruct = ShipAliveReq {
-        hostname: opts.hostname.unwrap_or("default".into()),
+        hostname: opts.hostname.unwrap_or_else(|| "default".into()),
         max_offline: opts.max_offline,
-        uuid: opts.uuid.unwrap_or("default UUID".into()),
+        uuid: opts.uuid.unwrap_or_else(|| "default UUID".into()),
     };
     let client = Client::new();
     // let uri = opts.server.parse::<hyper::Uri>().unwrap();
