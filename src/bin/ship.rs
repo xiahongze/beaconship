@@ -34,13 +34,19 @@ async fn main() -> Result<()> {
         .try_init();
 
     let opts = CmdOpts::parse();
-    info!("Ship sailed with {:?}", opts);
 
     let reqstruct = ShipAliveReq {
-        hostname: opts.hostname.unwrap_or_else(|| "default".into()),
+        hostname: opts.hostname.unwrap_or_else(|| {
+            hostname::get()
+                .unwrap_or_else(|_| "unknown host".into())
+                .into_string()
+                .unwrap_or_else(|_| "unknown host".into())
+        }),
         max_offline: opts.max_offline,
         uuid: opts.uuid.unwrap_or_else(|| "default UUID".into()),
     };
+    info!("Ship sailed with {:?}", reqstruct);
+
     let client = reqwest::Client::new();
 
     loop {
