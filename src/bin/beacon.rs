@@ -1,6 +1,6 @@
 use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
-use rocket::{serde::json::Json, State};
+use rocket::{response::status, serde::json::Json, State};
 use serde::Serialize;
 use std::{
     collections::HashMap,
@@ -26,21 +26,26 @@ struct CmdOpts {
     pub interval: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Clone)]
 struct ShipInfo {
     pub request: ShipAliveReq,
     pub last_seen: SystemTime,
 }
 
 type ShipInfoMap = HashMap<String, ShipInfo>;
+type ShipState = State<Arc<Mutex<ShipInfoMap>>>;
 
-#[get("/")]
-fn hello() -> &'static str {
-    "Hello, world!"
+#[get("/ship/<uuid>")]
+fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::NotFound<String>> {
+    let ship_info_map = state.lock().unwrap();
+    ship_info_map
+        .get(uuid)
+        .map(|ship_info| Ok(Json(ship_info.clone())))
+        .unwrap_or_else(|| Err(status::NotFound(format!("Ship ({}) not found", uuid))))
 }
 
 #[post("/ship", format = "application/json", data = "<ship>")]
-fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfoMap>>>) -> &'static str {
+fn register_ship(ship: Json<ShipAliveReq>, state: &ShipState) -> &'static str {
     let mut ship_info_map = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
     if let std::collections::hash_map::Entry::Vacant(e) = ship_info_map.entry(uuid.clone()) {
@@ -133,5 +138,5 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(arc)
-        .mount("/", routes![hello, register_ship])
+        .mount("/", routes![get_ship, register_ship])
 }
