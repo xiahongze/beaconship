@@ -16,10 +16,10 @@ const PUSHOVER_URL: &str = "https://api.pushover.net/1/messages.json";
 #[derive(Clap, Debug)]
 struct CmdOpts {
     /// PushOver App Token
-    #[clap(short, long)]
+    #[clap(short, long, env)]
     pub app_token: String,
     /// list of receivers to notify (PushOver User Tokens)
-    #[clap(short, long)]
+    #[clap(short, long, env)]
     pub receivers: Vec<String>,
     /// interval in seconds to scan for sunk ships
     #[clap(short, long, default_value = "5")]
