@@ -67,13 +67,13 @@ fn register_ship(ship: Json<ShipAliveReq>, state: &ShipState) -> &'static str {
     let mut ship_info_map = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
     if let std::collections::hash_map::Entry::Vacant(e) = ship_info_map.entry(uuid.clone()) {
-        info!("Adding ship {:?} to the database", ship);
+        info!("Adding ship {:?} to the map", ship);
         e.insert(ShipInfo {
             request: (*ship).clone(),
             last_seen: SystemTime::now(),
         });
     } else {
-        debug!("We have got {}", &uuid);
+        debug!("Ship {} has been registered", &uuid);
     }
     "ok"
 }
@@ -120,7 +120,7 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
             .iter()
             .filter_map(|(ship_id, ship_info)| {
                 if ship_info.last_seen + Duration::from_secs(ship_info.request.max_offline)
-                    > SystemTime::now()
+                    < SystemTime::now()
                 {
                     Some(ship_id.clone())
                 } else {

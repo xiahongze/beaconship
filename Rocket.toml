@@ -2,7 +2,7 @@
 address = "localhost"
 port = 8000
 workers = 1
-log = "normal"
+log = "debug"
 # secret_key = "sercret
 # limits = { forms = 32768 }
 
