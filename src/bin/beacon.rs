@@ -71,6 +71,17 @@ fn send_notice(msg: &str, app_token: &str, user_token: &str, client: &reqwest::b
             .unwrap(),
         )
         .send();
+    match result {
+        Ok(resp) => match resp.status() {
+            reqwest::StatusCode::OK => info!("pushover message sent"),
+            code => warn!(
+                "failed with statusCode {:?}, msg {:?}",
+                code,
+                resp.text().unwrap_or_else(|_| "can't read text".into())
+            ),
+        },
+        Err(err) => warn!("request sent failed with error, {:?}", err),
+    }
 }
 
 #[launch]
