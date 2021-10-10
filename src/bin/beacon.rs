@@ -2,7 +2,12 @@ mod model;
 use clap::Clap;
 use model::ShipAliveReq;
 use rocket::{serde::json::Json, State};
-use std::{collections::HashMap, sync::Mutex, time::SystemTime};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    thread,
+    time::{Duration, SystemTime},
+};
 #[macro_use]
 extern crate rocket;
 
@@ -19,6 +24,7 @@ struct CmdOpts {
     pub interval: u64,
 }
 
+#[derive(Debug)]
 struct ShipInfo {
     pub requests: HashMap<String, ShipAliveReq>,
     pub last_seens: HashMap<String, SystemTime>,
@@ -30,9 +36,9 @@ fn hello() -> &'static str {
 }
 
 #[post("/ship", format = "application/json", data = "<ship>")]
-fn register_ship(ship: Json<ShipAliveReq>, state_data: &State<Mutex<ShipInfo>>) -> &'static str {
+fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfo>>>) -> &'static str {
     println!("ship: {:?}", ship);
-    let mut ship_info = state_data.lock().unwrap();
+    let mut ship_info = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
     if ship_info.requests.contains_key(&uuid) {
         println!("We have got {}", &uuid);
@@ -48,10 +54,18 @@ fn register_ship(ship: Json<ShipAliveReq>, state_data: &State<Mutex<ShipInfo>>) 
 fn rocket() -> _ {
     let opts = CmdOpts::parse();
     println!("{:?}", opts);
+    let arc = Arc::new(Mutex::new(ShipInfo {
+        requests: HashMap::new(),
+        last_seens: HashMap::new(),
+    }));
+
+    let arc_thread = arc.clone();
+    thread::spawn(move || loop {
+        thread::sleep(Duration::from_secs(opts.interval));
+        let mut state = arc_thread.lock().unwrap();
+        println!("state: {:?}", state);
+    });
     rocket::build()
-        .manage(Mutex::new(ShipInfo {
-            requests: HashMap::new(),
-            last_seens: HashMap::new(),
-        }))
+        .manage(arc)
         .mount("/", routes![hello, register_ship])
 }
