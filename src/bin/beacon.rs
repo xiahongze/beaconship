@@ -44,6 +44,12 @@ fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::Not
         .unwrap_or_else(|| Err(status::NotFound(format!("Ship ({}) not found", uuid))))
 }
 
+#[get("/ship/list")]
+fn get_ships(state: &ShipState) -> Json<Vec<ShipInfo>> {
+    let ship_info_map = state.lock().unwrap();
+    Json(ship_info_map.values().cloned().collect())
+}
+
 #[delete("/ship/<uuid>")]
 fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFound<String>> {
     let mut ship_info_map = state.lock().unwrap();
@@ -147,5 +153,5 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(arc)
-        .mount("/", routes![get_ship, del_ship, register_ship])
+        .mount("/", routes![get_ship, get_ships, del_ship, register_ship])
 }
