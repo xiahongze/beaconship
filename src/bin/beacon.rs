@@ -94,10 +94,33 @@ fn rocket() -> _ {
     }));
 
     let arc_thread = arc.clone();
-    thread::spawn(move || loop {
-        thread::sleep(Duration::from_secs(opts.interval));
-        let mut state = arc_thread.lock().unwrap();
-        println!("state: {:?}", state);
+    thread::spawn(move || {
+        let client = reqwest::blocking::Client::new();
+        loop {
+            thread::sleep(Duration::from_secs(opts.interval));
+            let mut ship_info = arc_thread.lock().unwrap();
+            println!("ship_info: {:?}", ship_info);
+            // ship_info.last_seens.iter_mut().for_each(|(k, v)| {});
+            let mut ships_to_rm: Vec<String> = Vec::new();
+            for (ship_id, last_seen) in ship_info.last_seens.iter() {
+                let ship_req = ship_info.requests.get(ship_id).unwrap(); // guaranteed
+                if *last_seen + Duration::from_secs(ship_req.max_offline) > SystemTime::now() {
+                    ships_to_rm.push(ship_id.to_string());
+                }
+            }
+            for ship_id in ships_to_rm.iter() {
+                println!("removing sunk ship {}", ship_id);
+                let last_seen = ship_info.last_seens.remove(ship_id).unwrap();
+                let ship = ship_info.requests.remove(ship_id).unwrap();
+                let msg = format!(
+                    "Ship has sunk {} - last seen {:?}:\n\n{:?}",
+                    ship.hostname, last_seen, ship
+                );
+                for user_token in opts.receivers.iter() {
+                    send_notice(&msg, &opts.app_token, user_token, &client)
+                }
+            }
+        }
     });
     rocket::build()
         .manage(arc)
