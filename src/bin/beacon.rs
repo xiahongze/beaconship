@@ -2,6 +2,7 @@ mod model;
 use clap::Clap;
 use model::ShipAliveReq;
 use rocket::{serde::json::Json, State};
+use serde::Serialize;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -10,6 +11,8 @@ use std::{
 };
 #[macro_use]
 extern crate rocket;
+
+const PUSHOVER_URL: &str = "https://api.pushover.net/1/messages.json";
 
 #[derive(Clap, Debug)]
 struct CmdOpts {
@@ -48,6 +51,27 @@ fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfo>>>) 
         ship_info.last_seens.insert(uuid, SystemTime::now());
     }
     "ok"
+}
+#[derive(Serialize)]
+struct PushOverMsg<'a> {
+    message: &'a str,
+    token: &'a str,
+    user: &'a str,
+}
+
+fn send_notice(msg: &str, app_token: &str, user_token: &str, client: &reqwest::blocking::Client) {
+    let result = client
+        .post(PUSHOVER_URL)
+        .header("content-type", "application/json")
+        .body(
+            serde_json::to_vec(&PushOverMsg {
+                message: msg,
+                token: app_token,
+                user: user_token,
+            })
+            .unwrap(),
+        )
+        .send();
 }
 
 #[launch]
