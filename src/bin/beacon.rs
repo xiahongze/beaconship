@@ -44,6 +44,15 @@ fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::Not
         .unwrap_or_else(|| Err(status::NotFound(format!("Ship ({}) not found", uuid))))
 }
 
+#[delete("/ship/<uuid>")]
+fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFound<String>> {
+    let mut ship_info_map = state.lock().unwrap();
+    ship_info_map
+        .remove(uuid)
+        .map(|_| Ok("ok"))
+        .unwrap_or_else(|| Err(status::NotFound(format!("Ship ({}) not found", uuid))))
+}
+
 #[post("/ship", format = "application/json", data = "<ship>")]
 fn register_ship(ship: Json<ShipAliveReq>, state: &ShipState) -> &'static str {
     let mut ship_info_map = state.lock().unwrap();
@@ -138,5 +147,5 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(arc)
-        .mount("/", routes![get_ship, register_ship])
+        .mount("/", routes![get_ship, del_ship, register_ship])
 }
