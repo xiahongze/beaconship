@@ -39,13 +39,12 @@ fn hello() -> &'static str {
 
 #[post("/ship", format = "application/json", data = "<ship>")]
 fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfo>>>) -> &'static str {
-    println!("ship: {:?}", ship);
     let mut ship_info = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
     if ship_info.requests.contains_key(&uuid) {
-        println!("We have got {}", &uuid);
+        debug!("We have got {}", &uuid);
     } else {
-        println!("Adding ship {:?} to the database", ship);
+        info!("Adding ship {:?} to the database", ship);
         ship_info.requests.insert(uuid.clone(), (*ship).clone());
         ship_info.last_seens.insert(uuid, SystemTime::now());
     }
@@ -89,7 +88,7 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfo>>, opts: CmdOpts) {
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
         let mut ship_info = arc.lock().unwrap();
-        println!("ship_info: {:?}", ship_info);
+        debug!("ship_info: {:?}", ship_info);
         let mut ships_to_rm: Vec<String> = Vec::new();
         for (ship_id, last_seen) in ship_info.last_seens.iter() {
             let ship_req = ship_info.requests.get(ship_id).unwrap(); // guaranteed
@@ -98,7 +97,7 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfo>>, opts: CmdOpts) {
             }
         }
         for ship_id in ships_to_rm.iter() {
-            println!("removing sunk ship {}", ship_id);
+            info!("removing sunk ship {}", ship_id);
             let last_seen = ship_info.last_seens.remove(ship_id).unwrap();
             let ship = ship_info.requests.remove(ship_id).unwrap();
             let msg = format!(
@@ -114,8 +113,10 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfo>>, opts: CmdOpts) {
 
 #[launch]
 fn rocket() -> _ {
+    env_logger::init();
+
     let opts = CmdOpts::parse();
-    println!("{:?}", opts);
+    info!("{:?}", opts);
     let arc = Arc::new(Mutex::new(ShipInfo {
         requests: HashMap::new(),
         last_seens: HashMap::new(),

@@ -24,9 +24,7 @@ struct CmdOpts {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let _ = env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .try_init();
+    env_logger::init();
 
     let opts = CmdOpts::parse();
 
