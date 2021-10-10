@@ -55,7 +55,10 @@ fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFo
     let mut ship_info_map = state.lock().unwrap();
     ship_info_map
         .remove(uuid)
-        .map(|_| Ok("ok"))
+        .map(|ship_info| {
+            info!("Ship ({:?}) removed", ship_info);
+            Ok("ok")
+        })
         .unwrap_or_else(|| Err(status::NotFound(format!("Ship ({}) not found", uuid))))
 }
 
