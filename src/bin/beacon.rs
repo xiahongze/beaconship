@@ -20,7 +20,7 @@ struct CmdOpts {
     pub app_token: String,
     /// list of receivers to notify (PushOver User Tokens)
     #[clap(short, long, env)]
-    pub receivers: Vec<String>,
+    pub user_tokens: Vec<String>,
     /// interval in seconds to scan for sunk ships
     #[clap(short, long, default_value = "5")]
     pub interval: u64,
@@ -136,7 +136,7 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
                 "Ship has sunk {} - last seen {:?}:\n\n{:?}",
                 ship_info.request.hostname, ship_info.last_seen, ship_info
             );
-            for user_token in opts.receivers.iter() {
+            for user_token in opts.user_tokens.iter() {
                 send_notice(&msg, &opts.app_token, user_token, &client)
             }
         }
