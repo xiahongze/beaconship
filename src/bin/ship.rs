@@ -1,7 +1,5 @@
-mod model;
-
+use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
-use model::ShipAliveReq;
 use std::{thread, time::Duration};
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

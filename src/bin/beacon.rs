@@ -1,6 +1,5 @@
-mod model;
+use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
-use model::ShipAliveReq;
 use rocket::{serde::json::Json, State};
 use serde::Serialize;
 use std::{
