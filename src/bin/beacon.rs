@@ -1,9 +1,23 @@
 mod model;
+use clap::Clap;
 use model::ShipAliveReq;
 use rocket::{serde::json::Json, State};
 use std::{collections::HashMap, sync::Mutex, time::SystemTime};
 #[macro_use]
 extern crate rocket;
+
+#[derive(Clap, Debug)]
+struct CmdOpts {
+    /// PushOver App Token
+    #[clap(short, long)]
+    pub app_token: String,
+    /// list of receivers to notify (PushOver User Tokens)
+    #[clap(short, long)]
+    pub receivers: Vec<String>,
+    /// interval in seconds to scan for sunk ships
+    #[clap(short, long, default_value = "5")]
+    pub interval: u64,
+}
 
 struct ShipInfo {
     pub requests: HashMap<String, ShipAliveReq>,
@@ -32,6 +46,8 @@ fn register_ship(ship: Json<ShipAliveReq>, state_data: &State<Mutex<ShipInfo>>) 
 
 #[launch]
 fn rocket() -> _ {
+    let opts = CmdOpts::parse();
+    println!("{:?}", opts);
     rocket::build()
         .manage(Mutex::new(ShipInfo {
             requests: HashMap::new(),
