@@ -28,9 +28,11 @@ struct CmdOpts {
 
 #[derive(Debug)]
 struct ShipInfo {
-    pub requests: HashMap<String, ShipAliveReq>,
-    pub last_seens: HashMap<String, SystemTime>,
+    pub request: ShipAliveReq,
+    pub last_seen: SystemTime,
 }
+
+type ShipInfoMap = HashMap<String, ShipInfo>;
 
 #[get("/")]
 fn hello() -> &'static str {
@@ -38,15 +40,17 @@ fn hello() -> &'static str {
 }
 
 #[post("/ship", format = "application/json", data = "<ship>")]
-fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfo>>>) -> &'static str {
-    let mut ship_info = state.lock().unwrap();
+fn register_ship(ship: Json<ShipAliveReq>, state: &State<Arc<Mutex<ShipInfoMap>>>) -> &'static str {
+    let mut ship_info_map = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
-    if ship_info.requests.contains_key(&uuid) {
-        debug!("We have got {}", &uuid);
-    } else {
+    if let std::collections::hash_map::Entry::Vacant(e) = ship_info_map.entry(uuid.clone()) {
         info!("Adding ship {:?} to the database", ship);
-        ship_info.requests.insert(uuid.clone(), (*ship).clone());
-        ship_info.last_seens.insert(uuid, SystemTime::now());
+        e.insert(ShipInfo {
+            request: (*ship).clone(),
+            last_seen: SystemTime::now(),
+        });
+    } else {
+        debug!("We have got {}", &uuid);
     }
     "ok"
 }
@@ -83,26 +87,31 @@ fn send_notice(msg: &str, app_token: &str, user_token: &str, client: &reqwest::b
     }
 }
 
-fn check_sunk_ships(arc: Arc<Mutex<ShipInfo>>, opts: CmdOpts) {
+fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
     let client = reqwest::blocking::Client::new();
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
-        let mut ship_info = arc.lock().unwrap();
-        debug!("ship_info: {:?}", ship_info);
-        let mut ships_to_rm: Vec<String> = Vec::new();
-        for (ship_id, last_seen) in ship_info.last_seens.iter() {
-            let ship_req = ship_info.requests.get(ship_id).unwrap(); // guaranteed
-            if *last_seen + Duration::from_secs(ship_req.max_offline) > SystemTime::now() {
-                ships_to_rm.push(ship_id.to_string());
-            }
-        }
+        let mut ship_info_map = arc.lock().unwrap();
+        debug!("ship_info_map: {:?}", ship_info_map);
+        let ships_to_rm: Vec<String> = ship_info_map
+            .iter()
+            .filter_map(|(ship_id, ship_info)| {
+                if ship_info.last_seen + Duration::from_secs(ship_info.request.max_offline)
+                    > SystemTime::now()
+                {
+                    Some(ship_id.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         for ship_id in ships_to_rm.iter() {
             info!("removing sunk ship {}", ship_id);
-            let last_seen = ship_info.last_seens.remove(ship_id).unwrap();
-            let ship = ship_info.requests.remove(ship_id).unwrap();
+            let ship_info = ship_info_map.remove(ship_id).unwrap();
             let msg = format!(
                 "Ship has sunk {} - last seen {:?}:\n\n{:?}",
-                ship.hostname, last_seen, ship
+                ship_info.request.hostname, ship_info.last_seen, ship_info
             );
             for user_token in opts.receivers.iter() {
                 send_notice(&msg, &opts.app_token, user_token, &client)
@@ -117,10 +126,7 @@ fn rocket() -> _ {
 
     let opts = CmdOpts::parse();
     info!("{:?}", opts);
-    let arc = Arc::new(Mutex::new(ShipInfo {
-        requests: HashMap::new(),
-        last_seens: HashMap::new(),
-    }));
+    let arc = Arc::new(Mutex::new(ShipInfoMap::new()));
 
     let arc_thread = arc.clone();
     thread::spawn(move || check_sunk_ships(arc_thread, opts));
