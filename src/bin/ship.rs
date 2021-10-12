@@ -53,7 +53,7 @@ async fn main() -> Result<()> {
             .await;
         match result {
             Ok(resp) => match resp.status() {
-                reqwest::StatusCode::OK => info!("success"),
+                reqwest::StatusCode::OK => debug!("success"),
                 code => warn!(
                     "failed with statusCode {:?}, msg {:?}",
                     code,

@@ -66,14 +66,17 @@ fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFo
 fn register_ship(ship: Json<ShipAliveReq>, state: &ShipState) -> &'static str {
     let mut ship_info_map = state.lock().unwrap();
     let uuid = (*ship.uuid).to_string();
-    if let std::collections::hash_map::Entry::Vacant(e) = ship_info_map.entry(uuid.clone()) {
-        info!("Adding ship {:?} to the map", ship);
-        e.insert(ShipInfo {
-            request: (*ship).clone(),
-            last_seen: SystemTime::now(),
-        });
-    } else {
-        debug!("Ship {} has been registered", &uuid);
+    match ship_info_map.get_mut(&uuid) {
+        Some(ship_info) => ship_info.last_seen = SystemTime::now(),
+        None => {
+            ship_info_map.insert(
+                uuid.clone(),
+                ShipInfo {
+                    request: (*ship).clone(),
+                    last_seen: SystemTime::now(),
+                },
+            );
+        }
     }
     "ok"
 }
