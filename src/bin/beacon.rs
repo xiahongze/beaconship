@@ -1,5 +1,6 @@
 use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
+use hyper::{client::HttpConnector, header, Body, Method, Request, StatusCode};
 use rocket::{response::status, serde::json::Json, State};
 use serde::Serialize;
 use std::{
@@ -87,34 +88,36 @@ struct PushOverMsg<'a> {
     user: &'a str,
 }
 
-fn send_notice(msg: &str, app_token: &str, user_token: &str, client: &reqwest::blocking::Client) {
-    let result = client
-        .post(PUSHOVER_URL)
-        .header("content-type", "application/json")
-        .body(
-            serde_json::to_vec(&PushOverMsg {
-                message: msg,
-                token: app_token,
-                user: user_token,
-            })
-            .unwrap(),
-        )
-        .send();
+async fn send_notice(
+    msg: &str,
+    app_token: &str,
+    user_token: &str,
+    client: &hyper::Client<HttpConnector, Body>,
+) {
+    let body = serde_json::to_vec(&PushOverMsg {
+        message: msg,
+        token: app_token,
+        user: user_token,
+    })
+    .unwrap();
+    let req = Request::builder()
+        .uri(PUSHOVER_URL)
+        .header(header::CONTENT_TYPE, "application/json")
+        .method(Method::POST)
+        .body(body.into())
+        .unwrap();
+    let result = client.request(req).await;
     match result {
         Ok(resp) => match resp.status() {
-            reqwest::StatusCode::OK => info!("pushover message sent"),
-            code => warn!(
-                "failed with statusCode {:?}, msg {:?}",
-                code,
-                resp.text().unwrap_or_else(|_| "can't read text".into())
-            ),
+            StatusCode::OK => info!("pushover message sent"),
+            code => warn!("failed with statusCode {:?}, msg {:?}", code, *resp.body()),
         },
         Err(err) => warn!("request sent failed with error, {:?}", err),
     }
 }
 
-fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
-    let client = reqwest::blocking::Client::new();
+async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
+    let client = hyper::Client::new();
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
         let mut ship_info_map = arc.lock().unwrap();
@@ -140,7 +143,7 @@ fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
                 ship_info.request.hostname, ship_info.last_seen, ship_info
             );
             for user_token in opts.user_tokens.iter() {
-                send_notice(&msg, &opts.app_token, user_token, &client)
+                send_notice(&msg, &opts.app_token, user_token, &client).await
             }
         }
     }
@@ -155,7 +158,8 @@ fn rocket() -> _ {
     let arc = Arc::new(Mutex::new(ShipInfoMap::new()));
 
     let arc_thread = arc.clone();
-    thread::spawn(move || check_sunk_ships(arc_thread, opts));
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    thread::spawn(move || rt.block_on(check_sunk_ships(arc_thread, opts)));
 
     rocket::build()
         .manage(arc)
