@@ -5,6 +5,7 @@ use std::{thread, time::Duration};
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 #[macro_use]
 extern crate log;
+use hyper::{header, Method, Request, StatusCode, Uri};
 
 #[derive(Clap, Debug)]
 struct CmdOpts {
@@ -40,27 +41,22 @@ async fn main() -> Result<()> {
     };
     info!("Ship sailed with {:?}", reqstruct);
 
-    let client = reqwest::Client::new();
+    let client = hyper::Client::new();
 
     loop {
-        let url = reqwest::Url::parse(&opts.server).expect("Expect Legit URL");
+        let uri = opts.server.parse::<Uri>().expect("Expect a Legit URI");
         let body = serde_json::to_vec(&reqstruct).unwrap();
-        let result = client
-            .post(url)
-            .body(body)
-            .header("content-type", "application/json")
-            .send()
-            .await;
+        let req = Request::builder()
+            .uri(uri)
+            .header(header::CONTENT_TYPE, "application/json")
+            .method(Method::POST)
+            .body(body.into())
+            .unwrap();
+        let result = client.request(req).await;
         match result {
             Ok(resp) => match resp.status() {
-                reqwest::StatusCode::OK => debug!("success"),
-                code => warn!(
-                    "failed with statusCode {:?}, msg {:?}",
-                    code,
-                    resp.text()
-                        .await
-                        .unwrap_or_else(|_| "can't read text".into())
-                ),
+                StatusCode::OK => debug!("success"),
+                code => warn!("failed with statusCode {:?}, msg {:?}", code, *resp.body()),
             },
             Err(err) => warn!("request sent failed with error, {:?}", err),
         }
