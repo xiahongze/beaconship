@@ -8,6 +8,7 @@ extern crate log;
 use hyper::{header, Method, Request, StatusCode, Uri};
 
 #[derive(Clap, Debug)]
+/// Ship reports to Beacon if not sunk
 struct CmdOpts {
     /// remote server address
     #[clap(short, long)]

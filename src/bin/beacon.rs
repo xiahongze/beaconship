@@ -15,6 +15,7 @@ extern crate rocket;
 const PUSHOVER_URL: &str = "https://api.pushover.net/1/messages.json";
 
 #[derive(Clap, Debug)]
+/// Beacon stands as the watcher of ships
 struct CmdOpts {
     /// PushOver App Token
     #[clap(short, long, env)]
