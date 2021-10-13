@@ -1,6 +1,7 @@
 use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
 use hyper::{client::HttpConnector, header, Body, Method, Request, StatusCode};
+use hyper_tls::HttpsConnector;
 use rocket::{response::status, serde::json::Json, State};
 use serde::Serialize;
 use std::{
@@ -93,7 +94,7 @@ async fn send_notice(
     msg: &str,
     app_token: &str,
     user_token: &str,
-    client: &hyper::Client<HttpConnector, Body>,
+    client: &hyper::Client<HttpsConnector<HttpConnector>, Body>,
 ) {
     let body = serde_json::to_vec(&PushOverMsg {
         message: msg,
@@ -118,7 +119,9 @@ async fn send_notice(
 }
 
 async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
-    let client = hyper::Client::new();
+    let https = HttpsConnector::new();
+    let client = hyper::Client::builder().build::<_, hyper::Body>(https);
+
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
         let mut ship_info_map = arc.lock().unwrap();
