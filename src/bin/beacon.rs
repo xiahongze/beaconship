@@ -174,7 +174,7 @@ fn rocket() -> _ {
 
     let arc_opts = Arc::new(CmdOpts::parse());
     info!("{:?}", arc_opts);
-    let arc_opts_thread = arc_opts;
+    let arc_opts_thread = arc_opts.clone();
 
     let arc_ship = Arc::new(Mutex::new(ShipInfoMap::new()));
     let arc_ship_thread = arc_ship.clone();
@@ -184,6 +184,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .manage(arc_ship)
+        .manage(arc_opts)
         .manage(make_client())
         .mount("/", routes![get_ship, get_ships, del_ship, register_ship])
 }
