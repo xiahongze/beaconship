@@ -1,12 +1,13 @@
 use beaconship::lib::model::ShipAliveReq;
 use clap::Clap;
-use hyper::{client::HttpConnector, header, Body, Method, Request, StatusCode};
+use futures::lock::Mutex;
+use hyper::{client::HttpConnector, header, Method, Request, StatusCode};
 use hyper_tls::HttpsConnector;
 use rocket::{response::status, serde::json::Json, State};
 use serde::Serialize;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::Arc,
     thread,
     time::{Duration, SystemTime},
 };
@@ -38,6 +39,7 @@ struct ShipInfo {
 type ShipInfoMap = HashMap<String, ShipInfo>;
 type ShipState = State<Arc<Mutex<ShipInfoMap>>>;
 type ClientType = hyper::Client<HttpsConnector<HttpConnector>>;
+type ClientState = State<ClientType>;
 
 fn make_client() -> ClientType {
     let https = HttpsConnector::new();
@@ -45,8 +47,11 @@ fn make_client() -> ClientType {
 }
 
 #[get("/ship/<uuid>")]
-fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::NotFound<String>> {
-    let ship_info_map = state.lock().unwrap();
+async fn get_ship(
+    uuid: &str,
+    state: &ShipState,
+) -> Result<Json<ShipInfo>, status::NotFound<String>> {
+    let ship_info_map = state.lock().await;
     ship_info_map
         .get(uuid)
         .map(|ship_info| Ok(Json(ship_info.clone())))
@@ -54,14 +59,14 @@ fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::Not
 }
 
 #[get("/ship/list")]
-fn get_ships(state: &ShipState) -> Json<Vec<ShipInfo>> {
-    let ship_info_map = state.lock().unwrap();
+async fn get_ships(state: &ShipState) -> Json<Vec<ShipInfo>> {
+    let ship_info_map = state.lock().await;
     Json(ship_info_map.values().cloned().collect())
 }
 
 #[delete("/ship/<uuid>")]
-fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFound<String>> {
-    let mut ship_info_map = state.lock().unwrap();
+async fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFound<String>> {
+    let mut ship_info_map = state.lock().await;
     ship_info_map
         .remove(uuid)
         .map(|ship_info| {
@@ -72,12 +77,22 @@ fn del_ship(uuid: &str, state: &ShipState) -> Result<&'static str, status::NotFo
 }
 
 #[post("/ship", format = "application/json", data = "<ship>")]
-fn register_ship(ship: Json<ShipAliveReq>, state: &ShipState) -> &'static str {
-    let mut ship_info_map = state.lock().unwrap();
+async fn register_ship(
+    ship: Json<ShipAliveReq>,
+    ship_state: &ShipState,
+    client: &ClientState,
+    opts: &State<Arc<CmdOpts>>,
+) -> &'static str {
+    let mut ship_info_map = ship_state.lock().await;
     let uuid = (*ship.uuid).to_string();
     match ship_info_map.get_mut(&uuid) {
         Some(ship_info) => ship_info.last_seen = SystemTime::now(),
         None => {
+            info!("Ship has registered. {:?}", ship);
+            let msg = format!("Ship {} has registered.\n{:?}", ship.hostname, ship);
+            for user in opts.user_tokens.iter() {
+                send_notice(&msg, &opts.app_token, user, client).await;
+            }
             ship_info_map.insert(
                 uuid.clone(),
                 ShipInfo {
@@ -96,12 +111,7 @@ struct PushOverMsg<'a> {
     user: &'a str,
 }
 
-async fn send_notice(
-    msg: &str,
-    app_token: &str,
-    user_token: &str,
-    client: &hyper::Client<HttpsConnector<HttpConnector>, Body>,
-) {
+async fn send_notice(msg: &str, app_token: &str, user_token: &str, client: &ClientType) {
     let body = serde_json::to_vec(&PushOverMsg {
         message: msg,
         token: app_token,
@@ -124,12 +134,12 @@ async fn send_notice(
     }
 }
 
-async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
+async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: Arc<CmdOpts>) {
     let client = make_client();
 
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
-        let mut ship_info_map = arc.lock().unwrap();
+        let mut ship_info_map = arc.lock().await;
         debug!("ship_info_map: {:?}", ship_info_map);
         let ships_to_rm: Vec<String> = ship_info_map
             .iter()
@@ -162,15 +172,18 @@ async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
 fn rocket() -> _ {
     env_logger::init();
 
-    let opts = CmdOpts::parse();
-    info!("{:?}", opts);
-    let arc = Arc::new(Mutex::new(ShipInfoMap::new()));
+    let arc_opts = Arc::new(CmdOpts::parse());
+    info!("{:?}", arc_opts);
+    let arc_opts_thread = arc_opts;
 
-    let arc_thread = arc.clone();
+    let arc_ship = Arc::new(Mutex::new(ShipInfoMap::new()));
+    let arc_ship_thread = arc_ship.clone();
+
     let rt = tokio::runtime::Runtime::new().unwrap();
-    thread::spawn(move || rt.block_on(check_sunk_ships(arc_thread, opts)));
+    thread::spawn(move || rt.block_on(check_sunk_ships(arc_ship_thread, arc_opts_thread)));
 
     rocket::build()
-        .manage(arc)
+        .manage(arc_ship)
+        .manage(make_client())
         .mount("/", routes![get_ship, get_ships, del_ship, register_ship])
 }
