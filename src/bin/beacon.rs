@@ -37,6 +37,12 @@ struct ShipInfo {
 
 type ShipInfoMap = HashMap<String, ShipInfo>;
 type ShipState = State<Arc<Mutex<ShipInfoMap>>>;
+type ClientType = hyper::Client<HttpsConnector<HttpConnector>>;
+
+fn make_client() -> ClientType {
+    let https = HttpsConnector::new();
+    hyper::Client::builder().build::<_, hyper::Body>(https)
+}
 
 #[get("/ship/<uuid>")]
 fn get_ship(uuid: &str, state: &ShipState) -> Result<Json<ShipInfo>, status::NotFound<String>> {
@@ -119,8 +125,7 @@ async fn send_notice(
 }
 
 async fn check_sunk_ships(arc: Arc<Mutex<ShipInfoMap>>, opts: CmdOpts) {
-    let https = HttpsConnector::new();
-    let client = hyper::Client::builder().build::<_, hyper::Body>(https);
+    let client = make_client();
 
     loop {
         thread::sleep(Duration::from_secs(opts.interval));
