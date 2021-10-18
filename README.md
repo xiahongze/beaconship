@@ -24,3 +24,18 @@ OPENSSL_STATIC=0 OPENSSL_LIB_DIR=/opt/openssl/lib \
     OPENSSL_INCLUDE_DIR=/opt/openssl/include \
     cross build --target armv7-unknown-linux-gnueabihf 
 ```
+
+## aarch64
+
+On Ubuntu 20.04,
+
+```bash
+rustup target add aarch64-unknown-linux-gnu
+sudo apt-get install gcc-9-aarch64-linux-gnu
+# if building openssl
+CC=aarch64-linux-gnu-gcc-9 ./config --prefix=/opt/openssl linux-aarch64
+# then build with cargo
+OPENSSL_STATIC=1 OPENSSL_LIB_DIR=/opt/openssl/lib \
+    OPENSSL_INCLUDE_DIR=/opt/openssl/include \
+    cargo build --target aarch64-unknown-linux-gnu
+```

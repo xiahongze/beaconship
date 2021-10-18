@@ -9,7 +9,3 @@ passthrough = [
     "OPENSSL_INCLUDE_DIR",
     "CFLAGS",
 ]
-# CFLAGS=-fPIC \
-# OPENSSL_STATIC=1 OPENSSL_LIB_DIR=/opt/openssl/target/arm32_glibc215/lib \
-# OPENSSL_INCLUDE_DIR=/opt/openssl/target/arm32_glibc215/include \
-# cross build --target armv7-unknown-linux-gnueabihf 
