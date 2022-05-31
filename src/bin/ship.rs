@@ -1,4 +1,4 @@
-use beaconship::lib::model::ShipAliveReq;
+use beaconship::model::ShipAliveReq;
 use clap::Clap;
 use std::{thread, time::Duration};
 // A simple type alias so as to DRY.
